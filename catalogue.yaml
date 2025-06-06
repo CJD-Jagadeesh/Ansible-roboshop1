@@ -1,0 +1,75 @@
+-name: configure catalogue component
+hosts: 
+became: yes
+tasks:
+
+  - name: disable defaults nodejs
+    ansible.builtin.command: dnf module disable nodejs -y
+
+  - name: enable nodejs-20 version
+    ansible.builtin.command: dnf module enable nodejs:20 -y 
+
+  - name: install nodejs
+    ansible.builtin.command: dnf install nodejs -y 
+
+  - name: create directory
+    ansible.builtin.file:
+      name: /app
+      state: directory
+
+  - name: add system user
+    ansible.builtin.user:
+      name: system user
+      shell: /sbin/nologin
+      comment: roboshop system user
+      home: /app
+      system: true
+
+  - name: download code to app directory
+    ansible.builtin.get_url:
+      url: https://roboshop-artifacts.s3.amazonaws.com/catalogue-v3.zip
+      dest: /tmp/catalogue.zip
+
+  - name: unzip application code
+    ansible.builtin.archive:
+      src: /tmp/catalogue.zip
+      dest: /app
+      remote_src: yes
+
+  - name: install dependencies
+    ansible.builtin.npm:
+      path: /app
+
+  - name: copy catalogue service 
+    ansible.builtin.copy:
+      src: catalogue.service
+      dest: /etc/systemd/system/catalogue.service
+
+  - name: reload deamon
+    ansible.builtin.systemd_service:
+      deamon_reload: true
+
+  - name: restart service
+    ansible.builtin.service:
+      name: catalogue.service
+      state: restarted
+      enabled: yes
+
+  - name: copy mongodb repo
+    ansible.builtin.copy:
+      src: mongo.repo
+      dest: /etc/yum.repos.d/mongo.repo
+
+  - name: install mongodb client
+    ansible.builtin.dnf:
+      name: mongodb-mongosh
+      state: present
+
+  - name: check wheather mongo data loaded or not
+    ansible.builtin.command: mongosh --host MONGODB-SERVER-IPADDRESS </app/db/master-data.js
+    register: catalogue_output
+
+  - name: catalogue output 
+    ansible.builtin.debug:
+      msg: "{{ Catalogue_output }}"
+      
